@@ -1,0 +1,20 @@
+json
+{
+  "name": "image-workstation",
+  "version": "1.0.0",
+  "description": "Real pixel math for images — filters, auto levels, background removal, crop, rotate, flip. No AI, no external APIs.",
+  "license": "MIT",
+  "author": "Fish Gang Co. (https://fish-gang.netlify.app/Company)",
+  "type": "commonjs",
+  "main": "lib/image-process.js",
+  "files": ["lib", "css", "js", "index.html", "server.js", "demo.js", "README.md", "LICENSE"],
+  "scripts": {
+    "start": "node server.js",
+    "demo": "node demo.js"
+  },
+  "dependencies": {
+    "jpeg-js": "^0.4.4",
+    "pngjs": "^7.0.0"
+  },
+  "homepage": "https://fish-gang.netlify.app/Company"
+}

@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Image Workstation — Fish Gang Co.</title>
+<link rel="stylesheet" href="css/theme.css">
+<style>
+  html, body { height: 100%; overflow: hidden; }
+  body { display: flex; flex-direction: column; }
+  #app { flex: 1; display: flex; min-height: 0; background: var(--deep); }
+
+  .iw-panel { width: 240px; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow-y: auto; flex-shrink: 0; }
+  .iw-panel-section { padding: var(--sp-3); border-bottom: 1px solid var(--border); }
+  .iw-panel-section h4 { font-family: var(--font-display); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-dim); margin: 0 0 var(--sp-2); }
+  .iw-tool-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .iw-tool-btn { font-family: var(--font-display); font-size: 0.78rem; padding: 8px 6px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--surface-2); color: var(--text); cursor: pointer; text-align: center; }
+  .iw-tool-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .iw-tool-btn.active-tool { border-color: var(--accent); color: var(--accent); background: rgba(95, 212, 199, 0.1); }
+  .iw-slider-row { margin-bottom: var(--sp-2); }
+  .iw-slider-row label { display: flex; justify-content: space-between; font-size: 0.78rem; color: var(--text-dim); margin-bottom: 2px; }
+  .iw-slider-row input[type=range] { width: 100%; margin: 0; }
+
+  .iw-stage { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  .iw-toolbar { display: flex; gap: var(--sp-2); align-items: center; padding: var(--sp-2) var(--sp-3); background: var(--surface); border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+  .iw-toolbar button { font-family: var(--font-display); font-size: 0.82rem; padding: 6px 12px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--surface-2); color: var(--text); cursor: pointer; }
+  .iw-toolbar button:hover { border-color: var(--accent); color: var(--accent); }
+  .iw-toolbar button.primary { background: var(--accent); color: var(--deep); border-color: var(--accent); font-weight: 600; }
+  .iw-canvas-wrap { flex: 1; display: flex; align-items: center; justify-content: center; overflow: auto; padding: var(--sp-3); background: repeating-conic-gradient(#1b232a 0% 25%, #14191e 0% 50%) 50% / 24px 24px; }
+  #editCanvas { max-width: 100%; max-height: 100%; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5); cursor: crosshair; }
+  .iw-empty { color: var(--text-dim); text-align: center; }
+
+  @media (max-width: 760px) {
+    .iw-panel { position: fixed; top: 60px; left: 0; bottom: 0; z-index: 50; width: 230px; transform: translateX(-100%); transition: transform var(--t-fast) var(--ease); }
+    html[data-motion="static"] .iw-panel { transition: none; }
+    .iw-panel.open { transform: translateX(0); }
+  }
+</style>
+</head>
+<body>
+
+<header class="site-header">
+  <nav class="nav-bar">
+    <a href="https://fish-gang.netlify.app/Company" class="brand" target="_blank" rel="noopener noreferrer"><span class="dot">●</span> Fish Gang Co.</a>
+    <ul class="nav-links">
+      <li><a href="index.html" class="active">Image Workstation</a></li>
+      <li><a href="README.md">Docs</a></li>
+    </ul>
+    <button class="nav-toggle" id="navToggle" aria-label="Open menu" aria-expanded="false">☰</button>
+  </nav>
+  <div class="nav-drawer" id="navDrawer">
+    <a href="index.html">Image Workstation</a>
+    <a href="README.md">Docs</a>
+  </div>
+</header>
+
+<div id="app">
+  <aside class="iw-panel" id="panel">
+    <div class="iw-panel-section">
+      <h4>File</h4>
+      <input type="file" id="fileInput" accept="image/*" style="font-size: 0.8rem; color: var(--text-dim); margin-bottom: var(--sp-2);">
+    </div>
+
+    <div class="iw-panel-section">
+      <h4>Tools</h4>
+      <div class="iw-tool-grid">
+        <button class="iw-tool-btn" data-tool="erase">Eraser</button>
+        <button class="iw-tool-btn" data-tool="bg">BG Remove</button>
+        <button class="iw-tool-btn" data-tool="crop">Crop</button>
+        <button class="iw-tool-btn" data-tool="draw">Draw</button>
+      </div>
+      <div class="iw-slider-row mt-4" id="brushRow" style="display: none;">
+        <label><span>Brush size</span><span id="brushVal">24</span></label>
+        <input type="range" id="brushSize" min="4" max="80" value="24">
+      </div>
+      <div class="iw-slider-row" id="toleranceRow" style="display: none;">
+        <label><span>BG tolerance</span><span id="tolVal">32</span></label>
+        <input type="range" id="bgTolerance" min="5" max="100" value="32">
+        <p class="text-dim" style="font-size: 0.72rem; margin: 4px 0 0;">Click a background pixel to remove similar-colored areas.</p>
+      </div>
+    </div>
+
+    <div class="iw-panel-section">
+      <h4>Auto</h4>
+      <button class="iw-tool-btn" style="width: 100%;" id="autoBtn">Auto contrast/levels</button>
+    </div>
+
+    <div class="iw-panel-section">
+      <h4>Filters</h4>
+      <div class="iw-tool-grid">
+        <button class="iw-tool-btn" data-filter="none">None</button>
+        <button class="iw-tool-btn" data-filter="bw">B/W</button>
+        <button class="iw-tool-btn" data-filter="vintage">Vintage</button>
+        <button class="iw-tool-btn" data-filter="bleach">Bleach</button>
+        <button class="iw-tool-btn" data-filter="negative">Negative</button>
+        <button class="iw-tool-btn" data-filter="punch">Punch</button>
+        <button class="iw-tool-btn" data-filter="blue">Blue</button>
+        <button class="iw-tool-btn" data-filter="latte">Latte</button>
+      </div>
+    </div>
+
+    <div class="iw-panel-section">
+      <h4>Transform</h4>
+      <div class="iw-tool-grid">
+        <button class="iw-tool-btn" id="rotateLeft">⟲ Rotate</button>
+        <button class="iw-tool-btn" id="rotateRight">⟳ Rotate</button>
+        <button class="iw-tool-btn" id="flipH">⇋ Flip H</button>
+        <button class="iw-tool-btn" id="flipV">⇵ Flip V</button>
+      </div>
+    </div>
+  </aside>
+
+  <div class="iw-stage">
+    <div class="iw-toolbar">
+      <button id="panelToggle">☰ Tools</button>
+      <button id="undoBtn">↺ Undo</button>
+      <button id="resetBtn">Reset</button>
+      <span class="spacer" style="flex: 1;"></span>
+      <button class="primary" id="exportBtn">⭳ Export PNG</button>
+    </div>
+    <div class="iw-canvas-wrap" id="canvasWrap">
+      <div class="iw-empty" id="emptyState">
+        <p>Choose an image to begin.</p>
+      </div>
+      <canvas id="editCanvas" style="display: none;"></canvas>
+    </div>
+  </div>
+</div>
+
+<footer class="site-footer">
+  Built by <a href="https://fish-gang.netlify.app/Company" target="_blank" rel="noopener noreferrer">Fish Gang Co.</a> · MIT licensed
+</footer>
+
+<script src="js/perf-tier.js"></script>
+<script src="js/theme-toggle.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  var navToggle = document.getElementById('navToggle');
+  var navDrawer = document.getElementById('navDrawer');
+  navToggle.addEventListener('click', function () {
+    var open = navDrawer.classList.toggle('open');
+    navToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+  });
+  document.getElementById('panelToggle').addEventListener('click', function () {
+    document.getElementById('panel').classList.toggle('open');
+  });
+
+  var canvas = document.getElementById('editCanvas');
+  var ctx = canvas.getContext('2d', { willReadFrequently: true });
+  var rawImage = null;
+  var history = [];
+  var currentTool = null;
+  var currentFilter = 'none';
+
+  var FILTERS = {
+    none: 'none',
+    bw: 'grayscale(1)',
+    vintage: 'sepia(0.5) saturate(1.3) contrast(1.05)',
+    bleach: 'contrast(1.3) saturate(0.4) brightness(1.1)',
+    negative: 'invert(1)',
+    punch: 'saturate(1.6) contrast(1.15)',
+    blue: 'hue-rotate(180deg) saturate(1.2)',
+    latte: 'sepia(0.25) brightness(1.08) contrast(0.95)'
+  };
+
+  function clamp(v) { return v < 0 ? 0 : v > 255 ? 255 : v; }
+
+  function pushHistory() {
+    history.push(canvas.toDataURL());
+    if (history.length > 20) history.shift();
+  }
+
+  function undo() {
+    if (history.length < 2) return;
+    history.pop();
+    var prev = history[history.length - 1];
+    var img = new Image();
+    img.onload = function () {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0);
+    };
+    img.src = prev;
+  }
+  document.getElementById('undoBtn').addEventListener('click', undo);
+
+  function loadImageToCanvas(img) {
+    canvas.width = img.naturalWidth;
+    canvas.height = img.naturalHeight;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0);
+    canvas.style.display = 'block';
+    document.getElementById('emptyState').style.display = 'none';
+    rawImage = img;
+    history = [];
+    pushHistory();
+  }
+
+  document.getElementById('fileInput').addEventListener('change', function (e) {
+    var file = e.target.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function (evt) {
+      var img = new Image();
+      img.onload = function () { loadImageToCanvas(img); };
+      img.src = evt.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+
+  document.getElementById('resetBtn').addEventListener('click', function () {
+    if (!rawImage) return;
+    loadImageToCanvas(rawImage);
+    currentFilter = 'none';
+  });
+
+  document.querySelectorAll('[data-filter]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      if (!canvas.width) return;
+      var f = btn.dataset.filter;
+      var snapshot = new Image();
+      snapshot.onload = function () {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.filter = FILTERS[f];
+        ctx.drawImage(snapshot, 0, 0);
+        ctx.filter = 'none';
+        pushHistory();
+      };
+      snapshot.src = canvas.toDataURL();
+    });
+  });
+
+  document.getElementById('autoBtn').addEventListener('click', function () {
+    if (!canvas.width) return;
+    var data = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    var d = data.data;
+    var min = 255, max = 0;
+    for (var i = 0; i < d.length; i += 4) {
+      var lum = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+      if (lum < min) min = lum;
+      if (lum > max) max = lum;
+    }
+    var range = (max - min) || 1;
+    for (var j = 0; j < d.length; j += 4) {
+      d[j]     = clamp((d[j] - min) / range * 255);
+      d[j + 1] = clamp((d[j + 1] - min) / range * 255);
+      d[j + 2] = clamp((d[j + 2] - min) / range * 255);
+    }
+    ctx.putImageData(data, 0, 0);
+    pushHistory();
+  });
+
+  function rotate(deg) {
+    if (!canvas.width) return;
+    var w = canvas.width, h = canvas.height;
+    var temp = document.createElement('canvas');
+    temp.width = h;
+    temp.height = w;
+    var tctx = temp.getContext('2d');
+    tctx.translate(temp.width / 2, temp.height / 2);
+    tctx.rotate(deg * Math.PI / 180);
+    tctx.drawImage(canvas, -w / 2, -h / 2);
+    canvas.width = temp.width;
+    canvas.height = temp.height;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(temp, 0, 0);
+    pushHistory();
+  }
+  document.getElementById('rotateLeft').addEventListener('click', function () { rotate(-90); });
+  document.getElementById('rotateRight').addEventListener('click', function () { rotate(90); });
+
+  document.getElementById('flipH').addEventListener('click', function () {
+    if (!canvas.width) return;
+    var temp = document.createElement('canvas');
+    temp.width = canvas.width;
+    temp.height = canvas.height;
+    var tctx = temp.getContext('2d');
+    tctx.translate(temp.width, 0);
+    tctx.scale(-1, 1);
+    tctx.drawImage(canvas, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(temp, 0, 0);
+    pushHistory();
+  });
+
+  document.getElementById('flipV').addEventListener('click', function () {
+    if (!canvas.width) return;
+    var temp = document.createElement('canvas');
+    temp.width = canvas.width;
+    temp.height = canvas.height;
+    var tctx = temp.getContext('2d');
+    tctx.translate(0, temp.height);
+    tctx.scale(1, -1);
+    tctx.drawImage(canvas, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(temp, 0, 0);
+    pushHistory();
+  });
+
+  document.querySelectorAll('[data-tool]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      document.querySelectorAll('[data-tool]').forEach(function (b) { b.classList.remove('active-tool'); });
+      if (currentTool === btn.dataset.tool) {
+        currentTool = null;
+      } else {
+        currentTool = btn.dataset.tool;
+        btn.classList.add('active-tool');
+      }
+      document.getElementById('brushRow').style.display =
+        (currentTool === 'erase' || currentTool === 'draw') ? 'block' : 'none';
+      document.getElementById('toleranceRow').style.display =
+        (currentTool === 'bg') ? 'block' : 'none';
+    });
+  });
+
+  var brushSize = document.getElementById('brushSize');
+  brushSize.addEventListener('input', function () {
+    document.getElementById('brushVal').textContent = brushSize.value;
+  });
+  var bgTolerance = document.getElementById('bgTolerance');
+  bgTolerance.addEventListener('input', function () {
+    document.getElementById('tolVal').textContent = bgTolerance.value;
+  });
+
+  var isPointerDown = false;
+
+  function canvasPos(e) {
+    var rect = canvas.getBoundingClientRect();
+    var clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    var clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    var scaleX = canvas.width / rect.width;
+    var scaleY = canvas.height / rect.height;
+    return { x: (clientX - rect.left) * scaleX, y: (clientY - rect.top) * scaleY };
+  }
+
+  function paintAt(pos) {
+    var size = parseInt(brushSize.value, 10);
+    if (currentTool === 'erase') {
+      ctx.save();
+      ctx.globalCompositeOperation = 'destination-out';
+      ctx.beginPath();
+      ctx.arc(pos.x, pos.y, size / 2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    } else if (currentTool === 'draw') {
+      ctx.save();
+      ctx.fillStyle = '#000';
+      ctx.beginPath();
+      ctx.arc(pos.x, pos.y, size / 2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  function removeBackgroundAt(pos) {
+    var tol = parseInt(bgTolerance.value, 10);
+    var imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    var d = imgData.data;
+    var w = canvas.width;
+    var start = (Math.floor(pos.y) * w + Math.floor(pos.x)) * 4;
+    var r0 = d[start], g0 = d[start + 1], b0 = d[start + 2];
+    for (var i = 0; i < d.length; i += 4) {
+      var dr = d[i] - r0, dg = d[i + 1] - g0, db = d[i + 2] - b0;
+      if (Math.sqrt(dr * dr + dg * dg + db * db) <= tol) d[i + 3] = 0;
+    }
+    ctx.putImageData(imgData, 0, 0);
+    pushHistory();
+  }
+
+  var cropStart = null, cropRect = null;
+
+  function handleStart(e) {
+    if (!canvas.width) return;
+    var pos = canvasPos(e);
+    if (currentTool === 'erase' || currentTool === 'draw') { isPointerDown = true; paintAt(pos); }
+    else if (currentTool === 'bg') { removeBackgroundAt(pos); }
+    else if (currentTool === 'crop') { cropStart = pos; }
+  }
+
+  function handleMove(e) {
+    if (!canvas.width) return;
+    var pos = canvasPos(e);
+    if (isPointerDown && (currentTool === 'erase' || currentTool === 'draw')) paintAt(pos);
+    if (currentTool === 'crop' && cropStart) {
+      cropRect = {
+        x: Math.min(cropStart.x, pos.x),
+        y: Math.min(cropStart.y, pos.y),
+        w: Math.abs(pos.x - cropStart.x),
+        h: Math.abs(pos.y - cropStart.y)
+      };
+    }
+  }
+
+  function handleEnd() {
+    if (isPointerDown) { isPointerDown = false; pushHistory(); }
+    if (currentTool === 'crop' && cropRect && cropRect.w > 4 && cropRect.h > 4) {
+      var temp = document.createElement('canvas');
+      temp.width = cropRect.w;
+      temp.height = cropRect.h;
+      temp.getContext('2d').drawImage(canvas, cropRect.x, cropRect.y, cropRect.w, cropRect.h, 0, 0, cropRect.w, cropRect.h);
+      canvas.width = cropRect.w;
+      canvas.height = cropRect.h;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(temp, 0, 0);
+      pushHistory();
+      cropStart = null;
+      cropRect = null;
+    }
+  }
+
+  canvas.addEventListener('mousedown', handleStart);
+  canvas.addEventListener('mousemove', handleMove);
+  canvas.addEventListener('mouseup', handleEnd);
+  canvas.addEventListener('touchstart', handleStart, { passive: true });
+  canvas.addEventListener('touchmove', handleMove, { passive: true });
+  canvas.addEventListener('touchend', handleEnd);
+
+  document.getElementById('exportBtn').addEventListener('click', function () {
+    if (!canvas.width) { alert('Load an image first.'); return; }
+    var a = document.createElement('a');
+    a.href = canvas.toDataURL('image/png');
+    a.download = 'fishgang-export.png';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  });
+})();
+</script>
+</body>
+</html>
